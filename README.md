@@ -11,25 +11,6 @@
 
 7. docker-compose-traefik의 디렉토리로 이동해서 ```docker compose up -d``` 하면 Traefik, wordpress php-fpm, nignx, mysql, redis 그리고 DB 백업용 사이드카 컨테이너가 실행됩니다.
 
-```yum-config-manager --enable ol8_developer_EPEL ol8_developer_EPEL_modular```
-
-```yum update```
-
-```yum install git```
-
-```timedatectl set-timezone Asia/Seoul```
-
-```dnf install 'dnf-command(config-manager)'```
-
-```dnf config-manager --add-repo https://cli.github.com/packages/rpm/gh-cli.repo```
-
-```dnf install gh```
-
-```gh auth login```
-
-```git config --global user.email "137406386+Navystack@users.noreply.github.com"```
-
-```git config --global user.name "NavyStack"```
 
 ## (기타) CentOS, Oracel linux 등의 Docker 설치
 
