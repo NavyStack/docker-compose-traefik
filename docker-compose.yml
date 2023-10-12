@@ -1,0 +1,327 @@
+version: '3.9'
+
+services:
+  traefik:
+    image: traefik:latest
+    container_name: traefik
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "5"
+    command:
+      - "--log.level=INFO"
+      - "--accesslog=true"
+      - "--api.dashboard=true"
+      - "--api.insecure=true"
+      - "--ping=true"
+      - "--ping.entrypoint=ping"
+      - "--entryPoints.ping.address=:8082"
+      - "--entryPoints.web.address=:80"
+      - "--entryPoints.websecure.address=:443"
+
+      - "--providers.docker=true"
+      - "--providers.docker.watch=true"
+      - "--providers.docker.network=traefik-network"
+      - "--providers.docker.endpoint=unix:///var/run/docker.sock"
+      - "--providers.docker.exposedByDefault=false"
+      # Let's Encrypt ACME 설정
+      #- "--certificatesresolvers.letsencrypt.acme.tlschallenge=true" # DNS Challenge 사용시 주석처리 
+      #- "--certificatesresolvers.letsencrypt.acme.preferredChain=ISRG Root X2"
+      - "--certificatesresolvers.letsencrypt.acme.keyType=EC384"
+      - "--certificatesresolvers.letsencrypt.acme.email=webmaster@navystack.com"
+      - "--certificatesresolvers.letsencrypt.acme.storage=/etc/traefik/acme/acme.json"
+      # Let's Encrypt ACME DNS Challenge (CLoudflare)
+      - "--certificatesResolvers.letsencrypt.acme.dnsChallenge=true"
+      - "--certificatesResolvers.letsencrypt.acme.dnsChallenge.provider=cloudflare"
+      - "--certificatesResolvers.letsencrypt.acme.dnsChallenge.resolvers=1.1.1.1:53,8.8.8.8:53"
+      - "--certificatesresolvers.letsencrypt.acme.dnschallenge.delaybeforecheck=0"
+      # Prometheus 메트릭 설정
+      - "--metrics.prometheus=true"
+      - "--metrics.prometheus.buckets=0.1,0.3,1.2,5.0"
+      - "--metrics.prometheus.addServicesLabels=true"
+      - "--metrics.prometheus.addrouterslabels=true"
+      - "--metrics.prometheus.addEntryPointsLabels=true"
+      # 버전 확인 및 익명 사용 통계 설정
+      - "--global.checkNewVersion=true"
+      - "--global.sendAnonymousUsage=false"
+      # HTTP3 설정
+      - "--experimental.http3=true"
+      - "--entrypoints.websecure.http3"
+      - "--entrypoints.websecure.http3.advertisedport=443"
+
+      - "--providers.file.filename=/etc/traefik/dynamic_conf.yml"
+      - "--providers.file.watch=true"
+    # environment:
+      # CF_DNS_API_TOKEN: #tls Challenge 사용시 주석처리
+    healthcheck:
+      test: ["CMD", "wget", "http://localhost:8082/ping","--spider"]
+      interval: 10s
+      timeout: 2s
+      retries: 3
+      start_period: 5s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.services.dashboard.loadbalancer.server.port=8080"
+      - "traefik.http.services.dashboard.loadbalancer.passhostheader=true"
+
+      - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
+      - "traefik.http.middlewares.redirect-to-https.redirectscheme.permanent=true"
+      # 암호생성 참고 https://hostingcanada.org/htpasswd-generator/ 현재 admin:admin
+      #- "traefik.http.middlewares.authtraefik.basicauth.users=admin:$$2y$$10$$304FRZNTeeGI97poIYCdgu5DGlrLbxuF30wbDD.cTbbzSt0uovF5G"
+      - "traefik.http.routers.dashboard.rule=Host(`web.lightsail.dev`)"
+      - "traefik.http.routers.dashboard.entrypoints=websecure"
+      - "traefik.http.routers.dashboard.service=api@internal"
+      - "traefik.http.routers.dashboard.tls=true"
+      - "traefik.http.routers.dashboard.tls.certresolver=letsencrypt"
+      #- "traefik.http.routers.dashboard.middlewares=authtraefik"
+      - "traefik.http.routers.http-catchall.rule=HostRegexp(`{host:.+}`)"
+      - "traefik.http.routers.http-catchall.entrypoints=web"
+      - "traefik.http.routers.http-catchall.middlewares=redirect-to-https"
+
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /home/opc/docker-compose-traefik/dynamic_conf.yml:/etc/traefik/dynamic_conf.yml
+      - traefik-certificates:/etc/traefik/acme
+    networks:
+      - traefik-network
+    ports:
+      - target: 80
+        published: 80
+        mode: host
+
+      - target: 443
+        published: 443
+        mode: host
+        protocol: tcp
+
+      - target: 443
+        published: 443
+        mode: host
+        protocol: udp
+
+  phpmyadmin:
+    image: phpmyadmin:latest
+    container_name: phpmyadmin
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "5"
+    environment:
+      - PMA_ARBITRARY=1
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.services.phpmyadmin-srv.loadbalancer.server.port=80"
+      - "traefik.http.services.phpmyadmin-srv.loadbalancer.passhostheader=true"
+      # 암호생성 참고 https://hostingcanada.org/htpasswd-generator/ 현재 admin:admin
+      #- "traefik.http.middlewares.authtraefik.basicauth.users=admin:$$2y$$10$$304FRZNTeeGI97poIYCdgu5DGlrLbxuF30wbDD.cTbbzSt0uovF5G"
+      - "traefik.http.middlewares.compresstraefik.compress=true"
+      - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
+      - "traefik.http.middlewares.redirect-to-https.redirectscheme.permanent=true"
+
+      - "traefik.http.routers.phpmyadmin.rule=Host(`php.lightsail.dev`)"
+      - "traefik.http.routers.phpmyadmin.entrypoints=websecure"
+      - "traefik.http.routers.phpmyadmin.service=phpmyadmin-srv"
+      - "traefik.http.routers.phpmyadmin.tls=true"
+      - "traefik.http.routers.phpmyadmin.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.phpmyadmin.middlewares=compresstraefik,redirect-to-https"
+
+    networks:
+      - traefik-network
+      - backup-network
+
+  examlple-nginx-wp:
+    container_name: examlple-nginx-wp
+    image: nginx:latest
+    depends_on:
+      - examlple-wordpress
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "5"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.services.wordpress-examlple-srv.loadbalancer.server.port=80"
+      - "traefik.http.services.wordpress-examlple-srv.loadbalancer.passhostheader=true"
+
+      - "traefik.http.middlewares.compresstraefik.compress=true"
+      - "traefik.http.middlewares.www-redir.redirectregex.regex=^https://www.(.*)"
+      - "traefik.http.middlewares.www-redir.redirectregex.replacement=https://$${1}"
+      - "traefik.http.middlewares.www-redir.redirectregex.permanent=true"
+      - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
+      - "traefik.http.middlewares.redirect-to-https.redirectscheme.permanent=true"
+
+      - "traefik.http.routers.wordpress-lightsail.rule=Host(`lightsail.dev`, `www.lightsail.dev`)"
+      - "traefik.http.routers.wordpress-lightsail.entrypoints=websecure"
+      - "traefik.http.routers.wordpress-lightsail.service=wordpress-examlple-srv"
+      - "traefik.http.routers.wordpress-lightsail.middlewares=compresstraefik,www-redir,redirect-to-https" # my-rewrite-body , my-subfilter, http-cache, wpsts, www-redir
+      - "traefik.http.routers.wordpress-lightsail.tls=true"
+      - "traefik.http.routers.wordpress-lightsail.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.wordpress-lightsail.tls.domains[0].main=lightsail.dev"
+      - "traefik.http.routers.wordpress-lightsail.tls.domains[0].sans=www.lightsail.dev"
+
+    volumes:
+      - examlple-wp-data:/var/www/html
+      - /home/opc/docker-compose-traefik/docker/nginx/lightsail.dev:/etc/nginx/conf.d
+    networks:
+      - traefik-network
+      - examlple-network
+
+  examlple-wordpress:
+    container_name: examlple-wordpress
+    image: wordpress:php8.2-fpm
+    depends_on:
+      - examlple-mysql-wp
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "5"
+    environment:
+      WORDPRESS_DB_HOST: examlple-mysql-wp:3306
+      WORDPRESS_DB_NAME: examlple-wp
+      WORDPRESS_DB_USER: examlple-wp
+      WORDPRESS_DB_PASSWORD: password
+      WORDPRESS_CONFIG_EXTRA: |
+        define( 'WP_REDIS_HOST', 'examlple-redis-wp' );
+        define( 'WP_REDIS_PORT', 6379 );
+        define( 'WP_REDIS_PASSWORD', 'password' );
+        define( 'RT_WP_NGINX_HELPER_CACHE_PATH', '/var/run/nginx-cache' );
+    volumes:
+      - examlple-wp-data:/var/www/html
+      - /home/opc/docker-compose-traefik/docker/php/custom.ini:/usr/local/etc/php/conf.d/custom.ini
+    networks:
+      - examlple-network
+
+  examlple-mysql-wp:
+    container_name: examlple-mysql-wp
+    image: mysql:latest
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "5"
+    environment:
+      MYSQL_DATABASE: examlple-wp
+      MYSQL_USER: examlple-wp
+      MYSQL_PASSWORD: password
+      MYSQL_ROOT_PASSWORD: password
+    healthcheck:
+      test: "mysqladmin ping -h 127.0.0.1 -u root --password=password"
+      interval: 5s
+      retries: 10
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - examlple-mysql-wp:/var/lib/mysql
+      - /home/opc/docker-compose-traefik/docker/mysql/my.cnf:/etc/mysql/conf.d/my.cnf
+    networks:
+      - examlple-network
+      - backup-network
+
+  examlple-mysql-backups:
+    image: mysql:latest
+    container_name: examlple-mysql-backups
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "5"
+    command: sh -c 'sleep $$BACKUP_INIT_SLEEP
+             && while true; do
+                mysqldump -h $$DB_HOST -u $$DB_USER -p'$$DB_PASSWORD' $$DB_NAME | gzip > $$MYSQLDB_BACKUPS_PATH/$$MYSQLDB_BACKUP_NAME-$$(date "+%Y-%m-%d_%H-%M").gz &&
+                tar -zcpf $$DATA_BACKUPS_PATH/$$DATA_BACKUP_NAME-$$(date "+%Y-%m-%d_%H-%M").tar.gz $$DATA_PATH &&
+                find $$MYSQLDB_BACKUPS_PATH -type f -mtime +$$MYSQLDB_BACKUP_PRUNE_DAYS | xargs rm -f &&
+                find $$DATA_BACKUPS_PATH -type f -mtime +$$DATA_BACKUP_PRUNE_DAYS | xargs rm -f;
+                sleep $$BACKUP_INTERVAL; done'
+    volumes:
+      - examlple-wp-data:/var/www/html
+      - data-backups:/srv/data/backups
+      - examlple-mysql-wp:/var/lib/mysql
+      - mysql-data-backups:/srv/mysql/backups
+      - /etc/localtime:/etc/localtime:ro
+
+    environment:
+      BACKUP_INIT_SLEEP: 1m
+      BACKUP_INTERVAL: 24h
+      MYSQLDB_BACKUP_PRUNE_DAYS: 14
+      DATA_BACKUP_PRUNE_DAYS: 14
+      MYSQLDB_BACKUPS_PATH: /srv/mysql/backups
+      DATA_BACKUPS_PATH: /srv/data/backups
+
+      DB_HOST: examlple-mysql-wp
+      DB_NAME: examlple-wp
+      DB_USER: root
+      DB_PASSWORD: password
+      DATA_PATH: /var/www/html
+      MYSQLDB_BACKUP_NAME: examlple-MySQL-backup
+      DATA_BACKUP_NAME: examlple-DATA-backup
+    networks:
+      - backup-network
+    depends_on:
+      - examlple-mysql-wp
+
+  examlple-redis-wp:
+    container_name: examlple-redis-wp
+    image: redis:latest
+    logging:
+      options:
+        max-size: "10m"
+        max-file: "5"
+    command: ["redis-server", "--requirepass", "password"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+    volumes:
+      - examlple-redis-wp:/data
+    networks:
+      - examlple-network
+
+networks:
+  traefik-network:
+    external: true
+  backup-network:
+    external: true
+  examlple-network:
+    external: true
+
+volumes:
+  traefik-certificates:
+    driver: local
+    driver_opts:
+       o: bind
+       type: none
+       device: /home/opc/docker-compose-traefik/DATA/traefik-certificates
+
+  data-backups:
+    driver: local
+    driver_opts:
+       o: bind
+       type: none
+       device: /home/opc/docker-compose-traefik/BACKUPS/data-backups
+
+  mysql-data-backups:
+    driver: local
+    driver_opts:
+       o: bind
+       type: none
+       device: /home/opc/docker-compose-traefik/BACKUPS/mysql-data-backups
+
+  examlple-mysql-wp:
+    driver: local
+    driver_opts:
+       o: bind
+       type: none
+       device: /home/opc/docker-compose-traefik_Databases/DATA/example.com/mysql-wp
+
+  examlple-wp-data:
+    driver: local
+    driver_opts:
+       o: bind
+       type: none
+       device: /home/opc/docker-compose-traefik/DATA/example.com/wp-data
+
+  examlple-redis-wp:
+    driver: local
+    driver_opts:
+       o: bind
+       type: none
+       device: /home/opc/docker-compose-traefik_Databases/DATA/example.com/redis-wp
