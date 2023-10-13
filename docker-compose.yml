@@ -25,10 +25,10 @@ services:
       - "--providers.docker.endpoint=unix:///var/run/docker.sock"
       - "--providers.docker.exposedByDefault=false"
       # Let's Encrypt ACME 설정
-      #- "--certificatesresolvers.letsencrypt.acme.tlschallenge=true" # DNS Challenge 사용시 주석처리 
+      #- "--certificatesresolvers.letsencrypt.acme.tlschallenge=true" # DNS Challenge 사용시 주석처리 아니라면 주석 해제
       #- "--certificatesresolvers.letsencrypt.acme.preferredChain=ISRG Root X2"
       - "--certificatesresolvers.letsencrypt.acme.keyType=EC384"
-      - "--certificatesresolvers.letsencrypt.acme.email=webmaster@navystack.com"
+      - "--certificatesresolvers.letsencrypt.acme.email=webmaster@navystack.com" # 여기 이메일을 본인의 이메일로 수정
       - "--certificatesresolvers.letsencrypt.acme.storage=/etc/traefik/acme/acme.json"
       # Let's Encrypt ACME DNS Challenge (CLoudflare)
       - "--certificatesResolvers.letsencrypt.acme.dnsChallenge=true"
