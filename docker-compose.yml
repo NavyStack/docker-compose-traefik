@@ -68,7 +68,7 @@ services:
       - "traefik.http.middlewares.redirect-to-https.redirectscheme.permanent=true"
       # 암호생성 참고 https://hostingcanada.org/htpasswd-generator/ 현재 admin:admin
       #- "traefik.http.middlewares.authtraefik.basicauth.users=admin:$$2y$$10$$304FRZNTeeGI97poIYCdgu5DGlrLbxuF30wbDD.cTbbzSt0uovF5G"
-      - "traefik.http.routers.dashboard.rule=Host(`web.lightsail.dev`)"
+      - "traefik.http.routers.dashboard.rule=Host(`web.example.com`)" # 대시보드로 사용할 도메인으로 변경
       - "traefik.http.routers.dashboard.entrypoints=websecure"
       - "traefik.http.routers.dashboard.service=api@internal"
       - "traefik.http.routers.dashboard.tls=true"
@@ -150,14 +150,14 @@ services:
       - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
       - "traefik.http.middlewares.redirect-to-https.redirectscheme.permanent=true"
 
-      - "traefik.http.routers.wordpress-lightsail.rule=Host(`lightsail.dev`, `www.lightsail.dev`)"
+      - "traefik.http.routers.wordpress-lightsail.rule=Host(`example.com`) || Host(`www.example.com`)" # 사용할 도메인으로 변경
       - "traefik.http.routers.wordpress-lightsail.entrypoints=websecure"
       - "traefik.http.routers.wordpress-lightsail.service=wordpress-examlple-srv"
       - "traefik.http.routers.wordpress-lightsail.middlewares=compresstraefik,www-redir,redirect-to-https" # my-rewrite-body , my-subfilter, http-cache, wpsts, www-redir
       - "traefik.http.routers.wordpress-lightsail.tls=true"
       - "traefik.http.routers.wordpress-lightsail.tls.certresolver=letsencrypt"
-      - "traefik.http.routers.wordpress-lightsail.tls.domains[0].main=lightsail.dev"
-      - "traefik.http.routers.wordpress-lightsail.tls.domains[0].sans=www.lightsail.dev"
+      - "traefik.http.routers.wordpress-lightsail.tls.domains[0].main=example.com" # 인증서 받을 도메인으로 변경
+      - "traefik.http.routers.wordpress-lightsail.tls.domains[0].sans=www.example.com" # 인증서 받을 도메인으로 변경
 
     volumes:
       - examlple-wp-data:/var/www/html
